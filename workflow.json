@@ -1,0 +1,174 @@
+{
+  "id": "Kgjx48hxJ1RRdQ3g",
+  "name": "Triagem de avaliações com IA",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "avaliacao",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryJson",
+        "options": { "allowedOrigins": "*" }
+      },
+      "id": "a1",
+      "name": "Nova avaliação",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "b7e0c1a2-0001-4a1a-9a00-000000000001"
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $json.body || $json;\nreturn {\n  restaurante: String(b.restaurante || 'Sem nome').slice(0, 80),\n  nota: Math.min(5, Math.max(1, Number(b.nota) || 3)),\n  comentario: String(b.comentario || '').slice(0, 1000),\n  recebida_em: Date.now()\n};",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "a2",
+      "name": "Normalizar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/{{ $env.GEMINI_MODEL }}:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-goog-api-key", "value": "={{ $env.GEMINI_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  contents: [{ role: 'user', parts: [{ text: 'Você é analista de qualidade de um app de delivery de comida. Classifique a avaliação abaixo.\\n\\nCategorias possíveis: atraso, pedido_errado_ou_incompleto, qualidade_da_comida, seguranca_alimentar, cobranca, entregador, embalagem, preco_ou_porcao, elogio, outro.\\nUrgência: alta = risco à saúde, cobrança indevida, pedido errado ou faltando com nota até 2, ou entregador desrespeitoso; media = problema real sem risco; baixa = elogio ou detalhe.\\nresposta_sugerida: resposta do restaurante ao cliente, empática, em português, no máximo 2 frases, sem prometer o que não pode cumprir.\\nacao_interna: o que o restaurante deve corrigir na operação, em 1 frase.\\noferecer_cupom: true só se houve falha do restaurante ou da entrega.\\n\\nRestaurante: ' + $json.restaurante + '\\nNota: ' + $json.nota + ' de 5\\nComentário: ' + $json.comentario }] }],\n  generationConfig: {\n    temperature: 0.2,\n    responseMimeType: 'application/json',\n    responseSchema: {\n      type: 'OBJECT',\n      properties: {\n        categoria: { type: 'STRING', enum: ['atraso','pedido_errado_ou_incompleto','qualidade_da_comida','seguranca_alimentar','cobranca','entregador','embalagem','preco_ou_porcao','elogio','outro'] },\n        sentimento: { type: 'STRING', enum: ['positivo','neutro','negativo'] },\n        urgencia: { type: 'STRING', enum: ['alta','media','baixa'] },\n        resumo: { type: 'STRING' },\n        resposta_sugerida: { type: 'STRING' },\n        acao_interna: { type: 'STRING' },\n        oferecer_cupom: { type: 'BOOLEAN' }\n      },\n      required: ['categoria','sentimento','urgencia','resumo','resposta_sugerida','acao_interna','oferecer_cupom']\n    }\n  }\n}) }}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "a3",
+      "name": "IA classifica (Gemini)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 0],
+      "retryOnFail": true,
+      "maxTries": 5,
+      "waitBetweenTries": 4000
+    },
+    {
+      "parameters": {
+        "jsCode": "const entrada = $('Normalizar').item.json;\nconst texto = $json.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '{}';\nlet ia;\ntry { ia = JSON.parse(texto); } catch (e) { ia = { categoria: 'outro', sentimento: 'neutro', urgencia: 'media', resumo: 'Falha ao ler resposta da IA', resposta_sugerida: '', acao_interna: 'Revisar manualmente', oferecer_cupom: false }; }\nconst registro = {\n  id: entrada.recebida_em.toString(36) + Math.random().toString(36).slice(2, 6),\n  ...entrada,\n  ...ia,\n  triagem_ms: Date.now() - entrada.recebida_em\n};\nconst banco = $getWorkflowStaticData('global');\nbanco.avaliacoes = banco.avaliacoes || [];\nbanco.avaliacoes.unshift(registro);\nbanco.avaliacoes = banco.avaliacoes.slice(0, 500);\nreturn registro;",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "a4",
+      "name": "Salvar no banco",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.urgencia }}",
+              "rightValue": "alta",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a5",
+      "name": "É urgente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [880, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Em produção: enviar para Slack / WhatsApp do gerente.\nreturn { ...$json, alerta: '🚨 ' + $json.restaurante + ': ' + $json.resumo };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "a6",
+      "name": "Alerta para o gerente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, -100]
+    },
+    {
+      "parameters": {
+        "jsCode": "return { ...$json, alerta: null };",
+        "mode": "runOnceForEachItem"
+      },
+      "id": "a7",
+      "name": "Fila normal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 100]
+    },
+    {
+      "parameters": {
+        "path": "triagem-dados",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryJson",
+        "options": { "allowedOrigins": "*" }
+      },
+      "id": "b1",
+      "name": "Dashboard pede dados",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 320],
+      "webhookId": "b7e0c1a2-0002-4a1a-9a00-000000000002"
+    },
+    {
+      "parameters": {
+        "jsCode": "const banco = $getWorkflowStaticData('global');\nreturn [{ json: { avaliacoes: banco.avaliacoes || [] } }];"
+      },
+      "id": "b2",
+      "name": "Ler banco",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 320]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "triagem-zerar",
+        "responseMode": "lastNode",
+        "responseData": "firstEntryJson",
+        "options": { "allowedOrigins": "*" }
+      },
+      "id": "c1",
+      "name": "Zerar demo",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 520],
+      "webhookId": "b7e0c1a2-0003-4a1a-9a00-000000000003"
+    },
+    {
+      "parameters": {
+        "jsCode": "const banco = $getWorkflowStaticData('global');\nbanco.avaliacoes = [];\nreturn [{ json: { ok: true } }];"
+      },
+      "id": "c2",
+      "name": "Limpar banco",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 520]
+    }
+  ],
+  "connections": {
+    "Nova avaliação": { "main": [[{ "node": "Normalizar", "type": "main", "index": 0 }]] },
+    "Normalizar": { "main": [[{ "node": "IA classifica (Gemini)", "type": "main", "index": 0 }]] },
+    "IA classifica (Gemini)": { "main": [[{ "node": "Salvar no banco", "type": "main", "index": 0 }]] },
+    "Salvar no banco": { "main": [[{ "node": "É urgente?", "type": "main", "index": 0 }]] },
+    "É urgente?": { "main": [
+      [{ "node": "Alerta para o gerente", "type": "main", "index": 0 }],
+      [{ "node": "Fila normal", "type": "main", "index": 0 }]
+    ] },
+    "Dashboard pede dados": { "main": [[{ "node": "Ler banco", "type": "main", "index": 0 }]] },
+    "Zerar demo": { "main": [[{ "node": "Limpar banco", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Triagem de Avaliações</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#F6F5F1;--card:#fff;--ink:#1E2124;--mute:#62676C;--line:#E3E1DA;--sage:#6F8B76;--sage-soft:#E7EEE8;--red:#B4473A;--red-soft:#F6E3DF;--amber:#A87A2A;--amber-soft:#F4EBD8}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:400 14px/1.5 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1240px;margin:0 auto;padding:28px 20px 60px}
+header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+h1{font-size:22px;font-weight:600;letter-spacing:-.01em}
+h1 small{display:block;font-size:13px;font-weight:400;color:var(--mute)}
+.status{font-size:12px;padding:6px 12px;border-radius:999px;background:var(--sage-soft);color:var(--sage)}
+.status.off{background:var(--red-soft);color:var(--red)}
+.grid{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px}
+.card h2{font-size:13px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+label{display:block;font-size:12.5px;color:var(--mute);margin:12px 0 6px}
+select,textarea{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#FBFAF7;color:var(--ink)}
+textarea{min-height:90px;resize:vertical}
+.stars{display:flex;gap:6px}.stars button{flex:1;padding:9px 0;border:1px solid var(--line);background:#FBFAF7;border-radius:10px;font:inherit;cursor:pointer}
+.stars button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn{width:100%;margin-top:16px;padding:12px;border:0;border-radius:12px;background:var(--ink);color:#fff;font:500 14px Inter,sans-serif;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);margin-top:10px}
+.btn:disabled{opacity:.5;cursor:wait}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+.kpi b{display:block;font-size:26px;font-weight:600;letter-spacing:-.02em}
+.kpi span{font-size:12px;color:var(--mute)}
+.kpi.red b{color:var(--red)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px}
+.bar{display:grid;grid-template-columns:160px 1fr 38px;align-items:center;gap:10px;margin:8px 0;font-size:13px}
+.bar i{display:block;height:10px;border-radius:6px;background:var(--red);transition:width .5s}
+.bar i.pos{background:var(--sage)}
+.bar em{font-style:normal;color:var(--mute);text-align:right}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:12px;font-weight:500;color:var(--mute);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:12px 10px;border-bottom:1px solid var(--line);vertical-align:top;font-size:13px}
+tr.new td{animation:flash 1.6s}
+@keyframes flash{from{background:var(--sage-soft)}to{background:transparent}}
+.chip{display:inline-block;font-size:11.5px;padding:3px 9px;border-radius:999px;background:#F0EEE8;color:var(--mute);white-space:nowrap}
+.chip.alta{background:var(--red-soft);color:var(--red);font-weight:500}
+.chip.media{background:var(--amber-soft);color:var(--amber)}
+.chip.baixa{background:var(--sage-soft);color:var(--sage)}
+.resp{color:var(--mute);font-size:12.5px;margin-top:4px}
+.coment{width:46%;min-width:280px}
+.empty{color:var(--mute);text-align:center;padding:36px 0}
+.alerts .a{background:var(--red-soft);color:var(--red);border-radius:12px;padding:10px 12px;margin-bottom:8px;font-size:13px}
+.progress{font-size:12.5px;color:var(--mute);margin-top:10px;min-height:18px}
+@media(max-width:960px){.grid,.two{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.coment{max-width:none}.hide-m{display:none}}
+</style></head><body><div class="wrap">
+<header><h1>Triagem de avaliações com IA<small>n8n + Gemini · classifica, prioriza e sugere resposta em segundos</small></h1><span class="status" id="st">conectando ao n8n…</span></header>
+<div class="grid">
+  <aside class="card">
+    <h2>Nova avaliação</h2>
+    <label>Restaurante</label>
+    <select id="rest"><option>Brasa Norte</option><option>Sushi Kai</option><option>Cantina Nonna</option><option>Açaí da Praça</option><option>Marmita Fit</option><option>Pastel do Zé</option></select>
+    <label>Nota</label><div class="stars" id="stars"></div>
+    <label>Comentário do cliente</label><textarea id="com" placeholder="Ex.: Pedi sem cebola e veio com cebola…"></textarea>
+    <button class="btn" id="enviar">Enviar avaliação</button>
+    <button class="btn ghost" id="lote">Simular 30 avaliações</button>
+    <button class="btn ghost" id="zerar">Zerar demo</button>
+    <div class="progress" id="prog"></div>
+  </aside>
+  <main>
+    <div class="kpis">
+      <div class="kpi"><b id="k1">0</b><span>avaliações triadas</span></div>
+      <div class="kpi red"><b id="k2">0</b><span>urgentes para o gerente</span></div>
+      <div class="kpi"><b id="k3">–</b><span>nota média</span></div>
+      <div class="kpi"><b id="k4">–</b><span>tempo médio de triagem</span></div>
+    </div>
+    <div class="two">
+      <div class="card"><h2>Motivos das avaliações</h2><div id="cats"><div class="empty">Sem dados ainda</div></div></div>
+      <div class="card"><h2>Alertas urgentes</h2><div class="alerts" id="alerts"><div class="empty">Nenhum alerta</div></div></div>
+    </div>
+    <div class="card"><h2>Fila de triagem</h2>
+      <table><thead><tr><th>Avaliação e resposta sugerida</th><th>Motivo</th><th>Urgência</th><th class="hide-m">Ação interna</th></tr></thead><tbody id="rows"><tr><td colspan="4" class="empty">Envie uma avaliação ou simule um lote</td></tr></tbody></table>
+    </div>
+  </main>
+</div></div>
+<script>
+const N8N = 'http://localhost:5678/webhook';
+const TESTE = [{"restaurante":"Brasa Norte","nota":1,"comentario":"Pedi um X-bacon e veio um X-salada. Liguei e ninguém atendeu. Paguei por uma coisa e recebi outra."},{"restaurante":"Brasa Norte","nota":2,"comentario":"Demorou 1h20 pra chegar, o app dizia 40 min. Lanche chegou gelado."},{"restaurante":"Brasa Norte","nota":5,"comentario":"Melhor smash da região, chegou quentinho e o entregador foi super educado!"},{"restaurante":"Brasa Norte","nota":3,"comentario":"Gostoso mas a batata veio murcha e pouca pra o preço."},{"restaurante":"Brasa Norte","nota":1,"comentario":"Encontrei um fio de cabelo no hambúrguer. Nojento. Quero meu dinheiro de volta."},{"restaurante":"Sushi Kai","nota":4,"comentario":"Peixe fresco, só achei que podia ter mais shoyu no kit."},{"restaurante":"Sushi Kai","nota":1,"comentario":"Faltou o combinado de 20 peças inteiro, veio só o temaki. Absurdo."},{"restaurante":"Sushi Kai","nota":2,"comentario":"Entrega atrasou quase uma hora e o arroz estava duro."},{"restaurante":"Sushi Kai","nota":5,"comentario":"Perfeito como sempre, embalagem linda e chegou antes do previsto."},{"restaurante":"Sushi Kai","nota":3,"comentario":"Bom, mas a embalagem veio amassada e o molho vazou na sacola."},{"restaurante":"Cantina Nonna","nota":5,"comentario":"Lasanha igual da minha avó. Virei cliente."},{"restaurante":"Cantina Nonna","nota":2,"comentario":"A pizza chegou fria e com a borda queimada."},{"restaurante":"Cantina Nonna","nota":1,"comentario":"Sou celíaco, pedi a massa sem glúten e veio massa comum. Passei mal. Isso é grave."},{"restaurante":"Cantina Nonna","nota":4,"comentario":"Muito bom, só demorou um pouco mais que o normal."},{"restaurante":"Cantina Nonna","nota":3,"comentario":"Porção menor do que mostra a foto do app."},{"restaurante":"Açaí da Praça","nota":5,"comentario":"Açaí cremoso, vieram todos os adicionais certinho."},{"restaurante":"Açaí da Praça","nota":2,"comentario":"Esqueceram o leite ninho e a paçoca que eu paguei a mais."},{"restaurante":"Açaí da Praça","nota":1,"comentario":"Chegou derretido virando sopa, entregador demorou demais."},{"restaurante":"Açaí da Praça","nota":4,"comentario":"Bom custo-benefício, recomendo o de 500ml."},{"restaurante":"Açaí da Praça","nota":3,"comentario":"Ok, nada demais. O copo veio meio vazio."},{"restaurante":"Marmita Fit","nota":5,"comentario":"Comida saudável e saborosa, ótimo pra semana."},{"restaurante":"Marmita Fit","nota":2,"comentario":"Frango seco e sem tempero, decepcionante."},{"restaurante":"Marmita Fit","nota":1,"comentario":"Fui cobrado duas vezes no cartão pelo mesmo pedido e o restaurante não resolve."},{"restaurante":"Marmita Fit","nota":4,"comentario":"Gostei, mas podia ter opção sem cebola."},{"restaurante":"Marmita Fit","nota":3,"comentario":"Entrega no horário mas a tampa veio aberta."},{"restaurante":"Pastel do Zé","nota":5,"comentario":"Pastel sequinho e crocante mesmo depois de 30 min, impressionante."},{"restaurante":"Pastel do Zé","nota":2,"comentario":"Pedi 4 pastéis e vieram 3."},{"restaurante":"Pastel do Zé","nota":1,"comentario":"Entregador foi grosso comigo e jogou a sacola no portão."},{"restaurante":"Pastel do Zé","nota":4,"comentario":"Caldo de cana veio bem gelado, top. Pastel de carne podia ter mais recheio."},{"restaurante":"Pastel do Zé","nota":5,"comentario":"Atendimento excelente, mandaram um brinde pelo atraso de 10 min!"}];
+const NOMES = {atraso:'Atraso',pedido_errado_ou_incompleto:'Pedido errado/incompleto',qualidade_da_comida:'Qualidade da comida',seguranca_alimentar:'Segurança alimentar',cobranca:'Cobrança',entregador:'Entregador',embalagem:'Embalagem',preco_ou_porcao:'Preço/porção',elogio:'Elogio',outro:'Outro'};
+let nota = 3, dados = [];
+const vistos = new Set();
+const el = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+for (let i = 1; i <= 5; i++) {
+  const b = document.createElement('button');
+  b.textContent = i + '★';
+  b.onclick = () => { nota = i; pintar(); };
+  el('stars').appendChild(b);
+}
+function pintar() { [...el('stars').children].forEach((b, i) => b.classList.toggle('on', i < nota)); }
+pintar();
+
+async function carregar() {
+  try {
+    const r = await fetch(N8N + '/triagem-dados');
+    const j = await r.json();
+    dados = j.avaliacoes || [];
+    el('st').textContent = 'n8n conectado'; el('st').className = 'status';
+    render();
+  } catch (e) {
+    el('st').textContent = 'n8n desligado'; el('st').className = 'status off';
+  }
+}
+async function enviar(a) {
+  const r = await fetch(N8N + '/avaliacao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a) });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+function render() {
+  const n = dados.length;
+  el('k1').textContent = n;
+  el('k2').textContent = dados.filter(d => d.urgencia === 'alta').length;
+  el('k3').textContent = n ? (dados.reduce((s, d) => s + d.nota, 0) / n).toFixed(1) : '–';
+  el('k4').textContent = n ? (dados.reduce((s, d) => s + (d.triagem_ms || 0), 0) / n / 1000).toFixed(1) + ' s' : '–';
+
+  const c = {};
+  dados.forEach(d => c[d.categoria] = (c[d.categoria] || 0) + 1);
+  const ord = Object.entries(c).sort((a, b) => b[1] - a[1]);
+  const max = ord[0]?.[1] || 1;
+  el('cats').innerHTML = ord.length ? ord.map(([k, v]) =>
+    '<div class="bar"><span>' + esc(NOMES[k] || k) + '</span><i class="' + (k === 'elogio' ? 'pos' : '') + '" style="width:' + (v / max * 100) + '%"></i><em>' + Math.round(v / n * 100) + '%</em></div>'
+  ).join('') : '<div class="empty">Sem dados ainda</div>';
+
+  const al = dados.filter(d => d.urgencia === 'alta').slice(0, 5);
+  el('alerts').innerHTML = al.length ? al.map(d => '<div class="a">🚨 <b>' + esc(d.restaurante) + '</b>: ' + esc(d.resumo) + '</div>').join('') : '<div class="empty">Nenhum alerta</div>';
+
+  el('rows').innerHTML = n ? dados.map(d => {
+    const nova = !vistos.has(d.id); vistos.add(d.id);
+    return '<tr class="' + (nova ? 'new' : '') + '"><td class="coment"><b>' + esc(d.restaurante) + '</b> · ' + d.nota + '★<br>' + esc(d.comentario) +
+      '<div class="resp">↳ ' + esc(d.resposta_sugerida) + (d.oferecer_cupom ? ' <span class="chip">cupom</span>' : '') + '</div></td>' +
+      '<td><span class="chip">' + esc(NOMES[d.categoria] || d.categoria) + '</span></td>' +
+      '<td><span class="chip ' + esc(d.urgencia) + '">' + esc(d.urgencia) + '</span></td>' +
+      '<td class="hide-m">' + esc(d.acao_interna) + '</td></tr>';
+  }).join('') : '<tr><td colspan="4" class="empty">Envie uma avaliação ou simule um lote</td></tr>';
+}
+
+el('enviar').onclick = async () => {
+  const com = el('com').value.trim(); if (!com) return;
+  const b = el('enviar'); b.disabled = true; el('prog').textContent = 'IA analisando…';
+  try { await enviar({ restaurante: el('rest').value, nota, comentario: com }); el('com').value = ''; el('prog').textContent = ''; await carregar(); }
+  catch (e) { el('prog').textContent = 'Erro: o n8n está ligado?'; }
+  b.disabled = false;
+};
+el('lote').onclick = async () => {
+  const b = el('lote'); b.disabled = true;
+  const t0 = Date.now(); let ok = 0; const fila = [...TESTE];
+  const trabalhador = async () => {
+    while (fila.length) {
+      const a = fila.shift();
+      try { await enviar(a); ok++; } catch (e) {}
+      el('prog').textContent = ok + ' / ' + TESTE.length + ' triadas';
+      await carregar();
+    }
+  };
+  await trabalhador();
+  el('prog').textContent = ok + ' avaliações triadas em ' + ((Date.now() - t0) / 1000).toFixed(0) + ' s';
+  b.disabled = false;
+};
+el('zerar').onclick = async () => { await fetch(N8N + '/triagem-zerar', { method: 'POST' }); vistos.clear(); await carregar(); };
+carregar();
+setInterval(carregar, 8000);
+</script></body></html>
